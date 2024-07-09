@@ -1,5 +1,10 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminAddUserToGroupCommand } from '@aws-sdk/client-cognito-identity-provider';
+import {
+    CognitoIdentityProviderClient,
+    AdminCreateUserCommand,
+    AdminAddUserToGroupCommand,
+    AdminSetUserPasswordCommand
+} from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 
@@ -20,7 +25,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         const createUserParams = {
             UserPoolId: USER_POOL_ID,
             Username: email,
-            TemporaryPassword: password,
             UserAttributes: [
                 {
                     Name: 'email',
@@ -34,6 +38,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         };
         const createUserResponse = await cognitoClient.send(new AdminCreateUserCommand(createUserParams));
         const userId = createUserResponse.User?.Username;
+
+        const setPasswordParams = {
+            UserPoolId: USER_POOL_ID,
+            Username: email,
+            Password: password,
+            Permanent: true,
+        };
+        await cognitoClient.send(new AdminSetUserPasswordCommand(setPasswordParams));
 
         if (!userId) {
             throw new Error('Failed to create user in Cognito');

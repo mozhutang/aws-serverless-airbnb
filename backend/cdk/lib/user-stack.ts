@@ -33,6 +33,12 @@ export class UserStack extends cdk.Stack {
             groupName: 'host',
         });
 
+        // Create App Client for the user pool
+        const userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
+            userPool,
+            generateSecret: false,
+        });
+
         // Create Lambda function for creating user
         const createUserFunction = new lambda.Function(this, 'CreateUserFunction', {
             runtime: lambda.Runtime.NODEJS_14_X,
@@ -50,12 +56,30 @@ export class UserStack extends cdk.Stack {
         createUserFunction.addToRolePolicy(new PolicyStatement({
             actions: [
                 'cognito-idp:AdminCreateUser',
-                'cognito-idp:AdminAddUserToGroup'
+                'cognito-idp:AdminAddUserToGroup',
+                'cognito-idp:AdminSetUserPassword'
             ],
             resources: [userPool.userPoolArn]
         }));
 
         usersTable.grantReadWriteData(createUserFunction);
+
+        // Create Lambda function for user login
+        const loginUserFunction = new lambda.Function(this, 'LoginUserFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'user/login.handler',
+            code: lambda.Code.fromAsset('src/user'),
+            environment: {
+                CLIENT_ID: userPoolClient.userPoolClientId,
+            },
+        });
+
+        loginUserFunction.addToRolePolicy(new PolicyStatement({
+            actions: [
+                'cognito-idp:InitiateAuth',
+            ],
+            resources: [userPool.userPoolArn],
+        }));
 
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'UserApi', {
@@ -67,6 +91,11 @@ export class UserStack extends cdk.Stack {
         const createUserIntegration = new apigateway.LambdaIntegration(createUserFunction);
         createUser.addMethod('POST', createUserIntegration);
 
+        const loginUser = users.addResource('login');
+        const loginUserIntegration = new apigateway.LambdaIntegration(loginUserFunction);
+        loginUser.addMethod('POST', loginUserIntegration);
+
         new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
+        new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
     }
 }
