@@ -99,6 +99,22 @@ export class UserStack extends cdk.Stack {
 
         usersTable.grantReadWriteData(updateUserFunction);
 
+        // Create Lambda function for getting user information
+        const getUserFunction = new lambda.Function(this, 'GetUserFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'user/get.handler',
+            code: lambda.Code.fromAsset('src/user'),
+            environment: {
+                USERS_TABLE_NAME: usersTable.tableName,
+                USER_POOL_ID: userPool.userPoolId,
+            },
+        });
+
+        getUserFunction.addToRolePolicy(new PolicyStatement({
+            actions: ['cognito-idp:GetUser'],
+            resources: [userPool.userPoolArn],
+        }));
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'UserApi', {
             restApiName: 'User Service',
@@ -116,6 +132,10 @@ export class UserStack extends cdk.Stack {
         const updateUser = users.addResource('update').addResource('{userId}');
         const updateUserIntegration = new apigateway.LambdaIntegration(updateUserFunction);
         updateUser.addMethod('PUT', updateUserIntegration);
+
+        const getUser = users.addResource('get').addResource('{userId}');
+        const getUserIntegration = new apigateway.LambdaIntegration(getUserFunction);
+        getUser.addMethod('GET', getUserIntegration);
 
         new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
         new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });

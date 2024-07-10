@@ -40,7 +40,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         // Build UpdateExpression
         let updateExpression = 'SET';
         const expressionAttributeNames: { [key: string]: string } = {};
-        const expressionAttributeValues: { [key: string]: any } = {};
+        const expressionAttributeValues: { [key: string]: any } = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
 
         if (profile) {
             for (const key in profile) {
