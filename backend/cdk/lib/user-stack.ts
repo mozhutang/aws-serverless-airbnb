@@ -115,6 +115,21 @@ export class UserStack extends cdk.Stack {
             resources: [userPool.userPoolArn],
         }));
 
+        // Create Lambda function for deactivating user
+        const deactivateUserFunction = new lambda.Function(this, 'DeactivateUserFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'user/deactivate.handler',
+            code: lambda.Code.fromAsset('src/user'),
+            environment: {
+                USER_POOL_ID: userPool.userPoolId,
+            },
+        });
+
+        deactivateUserFunction.addToRolePolicy(new PolicyStatement({
+            actions: ['cognito-idp:AdminDisableUser', 'cognito-idp:GetUser'],
+            resources: [userPool.userPoolArn],
+        }));
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'UserApi', {
             restApiName: 'User Service',
@@ -136,6 +151,10 @@ export class UserStack extends cdk.Stack {
         const getUser = users.addResource('get').addResource('{userId}');
         const getUserIntegration = new apigateway.LambdaIntegration(getUserFunction);
         getUser.addMethod('GET', getUserIntegration);
+
+        const deactivateUser = users.addResource('deactivate').addResource('{userId}');
+        const deactivateUserIntegration = new apigateway.LambdaIntegration(deactivateUserFunction);
+        deactivateUser.addMethod('POST', deactivateUserIntegration);
 
         new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
         new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
