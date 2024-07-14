@@ -128,6 +128,29 @@ export class ListingStack extends cdk.Stack {
             resources: [`arn:aws:cognito-idp:*:*:userpool/${props.userPoolId}`],
         }));
 
+        // Create Lambda function for updating listing
+        const updateListingFunction = new lambda.Function(this, 'UpdateListingFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'listing/update.handler',
+            code: lambda.Code.fromAsset('src/listing'),
+            environment: {
+                EXPERIENCE_TABLE_NAME: experienceTable.tableName,
+                STAY_TABLE_NAME: stayTable.tableName,
+                USER_POOL_ID: props.userPoolId,
+                HOST_GROUP: props.hostGroup,
+            },
+        });
+
+        experienceTable.grantReadWriteData(updateListingFunction);
+        stayTable.grantReadWriteData(updateListingFunction);
+
+        updateListingFunction.addToRolePolicy(new PolicyStatement({
+            actions: [
+                'cognito-idp:GetUser',
+            ],
+            resources: [`arn:aws:cognito-idp:*:*:userpool/${props.userPoolId}`],
+        }));
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'ListingApi', {
             restApiName: 'Listing Service',
