@@ -52,6 +52,20 @@ export class ListingStack extends cdk.Stack {
             resources: [`arn:aws:cognito-idp:*:*:userpool/${props.userPoolId}`],
         }));
 
+        // Create Lambda function for getting listing
+        const getListingFunction = new lambda.Function(this, 'GetListingFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'listing/get.handler',
+            code: lambda.Code.fromAsset('src/listing'),
+            environment: {
+                EXPERIENCE_TABLE_NAME: experienceTable.tableName,
+                STAY_TABLE_NAME: stayTable.tableName,
+            },
+        });
+
+        experienceTable.grantReadData(getListingFunction);
+        stayTable.grantReadData(getListingFunction);
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'ListingApi', {
             restApiName: 'Listing Service',
@@ -61,6 +75,10 @@ export class ListingStack extends cdk.Stack {
         const createListing = listings.addResource('create');
         const createListingIntegration = new apigateway.LambdaIntegration(createListingFunction);
         createListing.addMethod('POST', createListingIntegration);
+
+        const getListing = listings.addResource('get').addResource('{listingId}');
+        const getListingIntegration = new apigateway.LambdaIntegration(getListingFunction);
+        getListing.addMethod('GET', getListingIntegration);
 
         // Output the table names
         new cdk.CfnOutput(this, 'ExperienceTableName', { value: experienceTable.tableName });
