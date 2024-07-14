@@ -35,6 +35,13 @@ export class ListingStack extends cdk.Stack {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
+        availabilityTable.addGlobalSecondaryIndex({
+            indexName: 'DatePriceIndex',
+            partitionKey: { name: 'date', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: 'price', type: dynamodb.AttributeType.NUMBER },
+            projectionType: dynamodb.ProjectionType.ALL,
+        });
+
         // Create Lambda function for creating listing
         const createListingFunction = new lambda.Function(this, 'CreateListingFunction', {
             runtime: lambda.Runtime.NODEJS_14_X,

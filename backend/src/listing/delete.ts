@@ -10,7 +10,6 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const EXPERIENCE_TABLE = process.env.EXPERIENCE_TABLE_NAME || '';
 const STAY_TABLE = process.env.STAY_TABLE_NAME || '';
 const AVAILABILITY_TABLE = process.env.AVAILABILITY_TABLE_NAME || '';
-const USER_POOL_ID = process.env.USER_POOL_ID || '';
 const HOST_GROUP = process.env.HOST_GROUP || '';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
