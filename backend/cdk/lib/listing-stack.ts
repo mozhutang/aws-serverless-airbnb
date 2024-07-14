@@ -66,6 +66,20 @@ export class ListingStack extends cdk.Stack {
         experienceTable.grantReadData(getListingFunction);
         stayTable.grantReadData(getListingFunction);
 
+        // Create Lambda function for listing listings
+        const listListingsFunction = new lambda.Function(this, 'ListListingsFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'listing/list.handler',
+            code: lambda.Code.fromAsset('src/listing'),
+            environment: {
+                EXPERIENCE_TABLE_NAME: experienceTable.tableName,
+                STAY_TABLE_NAME: stayTable.tableName,
+            },
+        });
+
+        experienceTable.grantReadData(listListingsFunction);
+        stayTable.grantReadData(listListingsFunction);
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'ListingApi', {
             restApiName: 'Listing Service',
@@ -79,6 +93,10 @@ export class ListingStack extends cdk.Stack {
         const getListing = listings.addResource('get').addResource('{listingId}');
         const getListingIntegration = new apigateway.LambdaIntegration(getListingFunction);
         getListing.addMethod('GET', getListingIntegration);
+
+        const listListings = listings.addResource('list');
+        const listListingsIntegration = new apigateway.LambdaIntegration(listListingsFunction);
+        listListings.addMethod('GET', listListingsIntegration);
 
         // Output the table names
         new cdk.CfnOutput(this, 'ExperienceTableName', { value: experienceTable.tableName });
