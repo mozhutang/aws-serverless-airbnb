@@ -151,6 +151,31 @@ export class ListingStack extends cdk.Stack {
             resources: [`arn:aws:cognito-idp:*:*:userpool/${props.userPoolId}`],
         }));
 
+        // Create Lambda function for deleting listing
+        const deleteListingFunction = new lambda.Function(this, 'DeleteListingFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'listing/delete.handler',
+            code: lambda.Code.fromAsset('src/listing'),
+            environment: {
+                EXPERIENCE_TABLE_NAME: experienceTable.tableName,
+                STAY_TABLE_NAME: stayTable.tableName,
+                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
+                USER_POOL_ID: props.userPoolId,
+                HOST_GROUP: props.hostGroup,
+            },
+        });
+
+        experienceTable.grantReadWriteData(deleteListingFunction);
+        stayTable.grantReadWriteData(deleteListingFunction);
+        availabilityTable.grantReadWriteData(deleteListingFunction);
+
+        deleteListingFunction.addToRolePolicy(new PolicyStatement({
+            actions: [
+                'cognito-idp:GetUser',
+            ],
+            resources: [`arn:aws:cognito-idp:*:*:userpool/${props.userPoolId}`],
+        }));
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'ListingApi', {
             restApiName: 'Listing Service',
@@ -176,6 +201,14 @@ export class ListingStack extends cdk.Stack {
         const updateAvailability = listings.addResource('updateAvailability').addResource('{listingId}');
         const updateAvailabilityIntegration = new apigateway.LambdaIntegration(updateAvailabilityFunction);
         updateAvailability.addMethod('POST', updateAvailabilityIntegration);
+
+        const updateListing = listings.addResource('update').addResource('{listingId}');
+        const updateListingIntegration = new apigateway.LambdaIntegration(updateListingFunction);
+        updateListing.addMethod('PUT', updateListingIntegration);
+
+        const deleteListing = listings.addResource('delete').addResource('{listingId}');
+        const deleteListingIntegration = new apigateway.LambdaIntegration(deleteListingFunction);
+        deleteListing.addMethod('DELETE', deleteListingIntegration);
 
         // Output the table names
         new cdk.CfnOutput(this, 'ExperienceTableName', { value: experienceTable.tableName });
