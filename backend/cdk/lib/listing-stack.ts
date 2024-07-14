@@ -28,6 +28,13 @@ export class ListingStack extends cdk.Stack {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
+        const availabilityTable = new dynamodb.Table(this, 'AvailabilityTable', {
+            partitionKey: { name: 'listingId', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: 'date', type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+        });
+
         // Create Lambda function for creating listing
         const createListingFunction = new lambda.Function(this, 'CreateListingFunction', {
             runtime: lambda.Runtime.NODEJS_14_X,
@@ -80,6 +87,22 @@ export class ListingStack extends cdk.Stack {
         experienceTable.grantReadData(listListingsFunction);
         stayTable.grantReadData(listListingsFunction);
 
+        // Create Lambda function for searching listings with availability and price filtering
+        const searchListingsFunction = new lambda.Function(this, 'SearchListingsFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'listing/search.handler',
+            code: lambda.Code.fromAsset('src/listing'),
+            environment: {
+                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
+                EXPERIENCE_TABLE_NAME: experienceTable.tableName,
+                STAY_TABLE_NAME: stayTable.tableName,
+            },
+        });
+
+        availabilityTable.grantReadData(searchListingsFunction);
+        experienceTable.grantReadData(searchListingsFunction);
+        stayTable.grantReadData(searchListingsFunction);
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'ListingApi', {
             restApiName: 'Listing Service',
@@ -98,8 +121,13 @@ export class ListingStack extends cdk.Stack {
         const listListingsIntegration = new apigateway.LambdaIntegration(listListingsFunction);
         listListings.addMethod('GET', listListingsIntegration);
 
+        const searchListings = listings.addResource('search');
+        const searchListingsIntegration = new apigateway.LambdaIntegration(searchListingsFunction);
+        searchListings.addMethod('GET', searchListingsIntegration);
+
         // Output the table names
         new cdk.CfnOutput(this, 'ExperienceTableName', { value: experienceTable.tableName });
         new cdk.CfnOutput(this, 'StayTableName', { value: stayTable.tableName });
+        new cdk.CfnOutput(this, 'AvailabilityTableName', { value: availabilityTable.tableName });
     }
 }
