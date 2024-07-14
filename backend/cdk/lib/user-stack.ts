@@ -7,6 +7,10 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 export class UserStack extends cdk.Stack {
+    public readonly userPoolId: string;
+    public readonly userPoolClientId: string;
+    public readonly hostGroup: string;
+
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
@@ -33,11 +37,18 @@ export class UserStack extends cdk.Stack {
             groupName: 'host',
         });
 
+        // Store host group name for other stacks
+        this.hostGroup = hostGroup.groupName || 'host';
+
         // Create App Client for the user pool
         const userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
             userPool,
             generateSecret: false,
         });
+
+        // Store user pool ID and client ID for other stacks
+        this.userPoolId = userPool.userPoolId;
+        this.userPoolClientId = userPoolClient.userPoolClientId;
 
         // Create Lambda function for creating user
         const createUserFunction = new lambda.Function(this, 'CreateUserFunction', {
@@ -156,7 +167,7 @@ export class UserStack extends cdk.Stack {
         const deactivateUserIntegration = new apigateway.LambdaIntegration(deactivateUserFunction);
         deactivateUser.addMethod('POST', deactivateUserIntegration);
 
-        new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
-        new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
+        new cdk.CfnOutput(this, 'UserPoolId', { value: this.userPoolId });
+        new cdk.CfnOutput(this, 'UserPoolClientId', { value: this.userPoolClientId });
     }
 }
