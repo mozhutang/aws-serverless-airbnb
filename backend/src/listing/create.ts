@@ -64,7 +64,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
 
     const { listingType, ...rest } = body;
-    const listingId = uuidv4();
+    const listingId = `${listingType === 'experience' ? 'EXPR' : 'STAY'}#${uuidv4()}`;
     const newListing = {
         ...rest,
         listingId,
