@@ -103,6 +103,31 @@ export class ListingStack extends cdk.Stack {
         experienceTable.grantReadData(searchListingsFunction);
         stayTable.grantReadData(searchListingsFunction);
 
+        // Create Lambda function for updating availability and price
+        const updateAvailabilityFunction = new lambda.Function(this, 'UpdateAvailabilityFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'listing/updateAvailability.handler',
+            code: lambda.Code.fromAsset('src/listing'),
+            environment: {
+                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
+                EXPERIENCE_TABLE_NAME: experienceTable.tableName,
+                STAY_TABLE_NAME: stayTable.tableName,
+                USER_POOL_ID: props.userPoolId,
+                HOST_GROUP: props.hostGroup,
+            },
+        });
+
+        availabilityTable.grantReadWriteData(updateAvailabilityFunction);
+        experienceTable.grantReadData(updateAvailabilityFunction);
+        stayTable.grantReadData(updateAvailabilityFunction);
+
+        updateAvailabilityFunction.addToRolePolicy(new PolicyStatement({
+            actions: [
+                'cognito-idp:GetUser',
+            ],
+            resources: [`arn:aws:cognito-idp:*:*:userpool/${props.userPoolId}`],
+        }));
+
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'ListingApi', {
             restApiName: 'Listing Service',
@@ -124,6 +149,10 @@ export class ListingStack extends cdk.Stack {
         const searchListings = listings.addResource('search');
         const searchListingsIntegration = new apigateway.LambdaIntegration(searchListingsFunction);
         searchListings.addMethod('GET', searchListingsIntegration);
+
+        const updateAvailability = listings.addResource('updateAvailability').addResource('{listingId}');
+        const updateAvailabilityIntegration = new apigateway.LambdaIntegration(updateAvailabilityFunction);
+        updateAvailability.addMethod('POST', updateAvailabilityIntegration);
 
         // Output the table names
         new cdk.CfnOutput(this, 'ExperienceTableName', { value: experienceTable.tableName });
