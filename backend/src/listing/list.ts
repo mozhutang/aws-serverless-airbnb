@@ -1,28 +1,33 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, ScanCommand, ScanCommandInput } from '@aws-sdk/lib-dynamodb';
+import {DynamoDBDocumentClient, QueryCommand, BatchGetCommand, QueryCommandInput} from '@aws-sdk/lib-dynamodb';
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const EXPERIENCE_TABLE = process.env.EXPERIENCE_TABLE_NAME || '';
-const STAY_TABLE = process.env.STAY_TABLE_NAME || '';
+const LISTING_TABLE_NAME = process.env.LISTING_TABLE_NAME || '';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
     const { type, lastEvaluatedKey } = event.queryStringParameters || {};
 
-    if (!type || (type !== 'STAY' && type !== 'EXPR')) {
+    if (!type || (type !== 'experience' && type !== 'stay')) {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: 'Invalid or missing type' }),
         };
     }
 
-    const tableName = type === 'EXPR' ? EXPERIENCE_TABLE : STAY_TABLE;
-
-    const params: ScanCommandInput = {
-        TableName: tableName,
-        ProjectionExpression: 'listingId, city, image',
+    const params: QueryCommandInput = {
+        TableName: LISTING_TABLE_NAME,
+        IndexName: 'TypeIndex',
+        KeyConditionExpression: '#listingType = :listingType',
+        ExpressionAttributeNames: {
+            '#listingType': 'listingType',
+        },
+        ExpressionAttributeValues: {
+            ':listingType': type,
+        },
+        ProjectionExpression: 'listingId',
         Limit: 20,
     };
 
@@ -31,13 +36,35 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
 
     try {
-        const result = await docClient.send(new ScanCommand(params));
+        const queryResult = await docClient.send(new QueryCommand(params));
+        const listingIds = queryResult.Items?.map(item => item.listingId) || [];
+
+        if (listingIds.length === 0) {
+            return {
+                statusCode: 200,
+                body: JSON.stringify({ items: [], lastEvaluatedKey: queryResult.LastEvaluatedKey }),
+            };
+        }
+
+        // Fetch full details for each listing
+        const keys = listingIds.map(listingId => ({ listingId }));
+        const batchGetParams = {
+            RequestItems: {
+                [LISTING_TABLE_NAME]: {
+                    Keys: keys,
+                    ProjectionExpression: 'listingId, city, image',
+                },
+            },
+        };
+
+        const batchGetResult = await docClient.send(new BatchGetCommand(batchGetParams));
+        const items = batchGetResult.Responses?.[LISTING_TABLE_NAME] || [];
 
         return {
             statusCode: 200,
             body: JSON.stringify({
-                items: result.Items,
-                lastEvaluatedKey: result.LastEvaluatedKey,
+                items,
+                lastEvaluatedKey: queryResult.LastEvaluatedKey,
             }),
         };
     } catch (error) {

@@ -8,8 +8,7 @@ const cognitoClient = new CognitoIdentityProviderClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const EXPERIENCE_TABLE = process.env.EXPERIENCE_TABLE_NAME || '';
-const STAY_TABLE = process.env.STAY_TABLE_NAME || '';
+const LISTING_TABLE_NAME = process.env.LISTING_TABLE_NAME || '';
 const HOST_GROUP = process.env.HOST_GROUP || '';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -69,13 +68,13 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         ...rest,
         listingId,
         hostId: userId,
+        listingType,
     };
 
 
     try {
-        const tableName = listingType === 'experience' ? EXPERIENCE_TABLE : STAY_TABLE;
         await docClient.send(new PutCommand({
-            TableName: tableName,
+            TableName: LISTING_TABLE_NAME,
             Item: newListing,
         }));
 

@@ -5,8 +5,7 @@ import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const EXPERIENCE_TABLE = process.env.EXPERIENCE_TABLE_NAME || '';
-const STAY_TABLE = process.env.STAY_TABLE_NAME || '';
+const LISTING_TABLE_NAME = process.env.LISTING_TABLE_NAME || '';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
     const { listingId } = event.pathParameters || {};
@@ -19,13 +18,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
 
     const prefix = listingId.split('#')[0];
-    let tableName;
 
-    if (prefix === 'EXPR') {
-        tableName = EXPERIENCE_TABLE;
-    } else if (prefix === 'STAY') {
-        tableName = STAY_TABLE;
-    } else {
+    if (prefix !== 'EXPR' && prefix !== 'STAY')  {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: 'Invalid listingId prefix' }),
@@ -34,7 +28,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     try {
         const result = await docClient.send(new GetCommand({
-            TableName: tableName,
+            TableName: LISTING_TABLE_NAME,
             Key: { listingId },
         }));
 

@@ -6,14 +6,12 @@ const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const AVAILABILITY_TABLE = process.env.AVAILABILITY_TABLE_NAME || '';
-const EXPERIENCE_TABLE = process.env.EXPERIENCE_TABLE_NAME || '';
-const STAY_TABLE = process.env.STAY_TABLE_NAME || '';
-
+const LISTING_TABLE = process.env.LISTING_TABLE_NAME || '';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
     const { startDate, endDate, type, minPrice, maxPrice } = event.queryStringParameters || {};
 
-    if (!type || (type !== 'STAY' && type !== 'EXPR')) {
+    if (!type || (type !== 'experience' && type !== 'stay')) {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: 'Invalid or missing type' }),
@@ -27,8 +25,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         };
     }
 
-    const tableName = type === 'EXPR' ? EXPERIENCE_TABLE : STAY_TABLE;
-    const listingPrefix = type === 'EXPR' ? 'EXPR#' : 'STAY#';
+    const listingPrefix = type === 'experience' ? 'EXPR#' : 'STAY#';
 
     // Step 1: Query the Availability table for listings available in the date range
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -88,7 +85,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
         const batchGetParams = {
             RequestItems: {
-                [tableName]: {
+                [LISTING_TABLE]: {
                     Keys: keys,
                     ProjectionExpression: 'listingId, city, image',
                 },
@@ -96,7 +93,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         };
 
         const result = await docClient.send(new BatchGetCommand(batchGetParams));
-        const items = result.Responses?.[tableName] || [];
+        const items = result.Responses?.[LISTING_TABLE] || [];
 
         // Attach average prices to items
         const itemsWithPrices = items.map(item => ({

@@ -7,8 +7,7 @@ const cognitoClient = new CognitoIdentityProviderClient({});
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const EXPERIENCE_TABLE = process.env.EXPERIENCE_TABLE_NAME || '';
-const STAY_TABLE = process.env.STAY_TABLE_NAME || '';
+const LISTING_TABLE = process.env.LISTING_TABLE_NAME || '';
 const AVAILABILITY_TABLE = process.env.AVAILABILITY_TABLE_NAME || '';
 const HOST_GROUP = process.env.HOST_GROUP || '';
 
@@ -62,11 +61,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
 
     // Verify listing existence and ownership
-    const tableName = listingId.startsWith('EXPR') ? EXPERIENCE_TABLE : STAY_TABLE;
-
     try {
         const listingResult = await docClient.send(new GetCommand({
-            TableName: tableName,
+            TableName: LISTING_TABLE,
             Key: { listingId },
         }));
 
@@ -88,7 +85,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
         // Delete listing from listing table
         await docClient.send(new DeleteCommand({
-            TableName: tableName,
+            TableName: LISTING_TABLE,
             Key: { listingId },
         }));
 
