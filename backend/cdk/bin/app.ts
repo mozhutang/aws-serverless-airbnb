@@ -1,6 +1,8 @@
 import { App, Stack, StackProps } from 'aws-cdk-lib';
 import { UserStack } from '../lib/user-stack';
 import { ListingStack } from '../lib/listing-stack';
+import { OrderStack } from '../lib/order-stack';
+
 
 class MainStack extends Stack {
     constructor(scope: App, id: string, props?: StackProps) {
@@ -11,6 +13,11 @@ class MainStack extends Stack {
         new ListingStack(this, 'ListingStack', {
             userPoolId: userStack.userPoolId,
             userPoolClientId: userStack.userPoolClientId,
+            hostGroup: userStack.hostGroup,
+        });
+
+        new OrderStack(this, 'OrderStack', {
+            userPoolId: userStack.userPoolId,
             hostGroup: userStack.hostGroup,
         });
     }
