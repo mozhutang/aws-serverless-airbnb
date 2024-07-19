@@ -7,6 +7,8 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 interface OrderStackProps extends cdk.StackProps {
     userPoolId: string;
     hostGroup: string;
+    availabilityTable: dynamodb.Table;
+    listingTable: dynamodb.Table;
 }
 
 export class OrderStack extends cdk.Stack {
@@ -15,7 +17,7 @@ export class OrderStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props: OrderStackProps) {
         super(scope, id, props);
 
-        const { userPoolId, hostGroup } = props;
+        const { userPoolId, availabilityTable,listingTable } = props;
 
         // Create DynamoDB table for orders
         this.orderTable = new dynamodb.Table(this, 'OrderTable', {
@@ -24,11 +26,18 @@ export class OrderStack extends cdk.Stack {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
-        // Add a GSI for userId to query orders by user
+        // Add a GSI for userId to query orders by user, projecting only orderId
         this.orderTable.addGlobalSecondaryIndex({
             indexName: 'UserIdIndex',
             partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
-            projectionType: dynamodb.ProjectionType.ALL,
+            projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+        });
+
+        // Add a GSI for listingId to query orders by listing, projecting only orderId
+        this.orderTable.addGlobalSecondaryIndex({
+            indexName: 'ListingIdIndex',
+            partitionKey: { name: 'listingId', type: dynamodb.AttributeType.STRING },
+            projectionType: dynamodb.ProjectionType.KEYS_ONLY,
         });
 
         // Create Lambda functions for order operations
@@ -38,8 +47,9 @@ export class OrderStack extends cdk.Stack {
             code: lambda.Code.fromAsset('src/order'),
             environment: {
                 ORDER_TABLE_NAME: this.orderTable.tableName,
+                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
                 USER_POOL_ID: userPoolId,
-                HOST_GROUP: hostGroup,
+                LISTING_TABLE_NAME: listingTable.tableName
             },
         });
 
@@ -49,8 +59,8 @@ export class OrderStack extends cdk.Stack {
             code: lambda.Code.fromAsset('src/order'),
             environment: {
                 ORDER_TABLE_NAME: this.orderTable.tableName,
+                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
                 USER_POOL_ID: userPoolId,
-                HOST_GROUP: hostGroup,
             },
         });
 
@@ -60,6 +70,28 @@ export class OrderStack extends cdk.Stack {
             code: lambda.Code.fromAsset('src/order'),
             environment: {
                 ORDER_TABLE_NAME: this.orderTable.tableName,
+                USER_POOL_ID: userPoolId,
+            },
+        });
+
+        const getByUserFunction = new lambda.Function(this, 'GetByUserFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'order/getByUser.handler',
+            code: lambda.Code.fromAsset('src/order'),
+            environment: {
+                ORDER_TABLE_NAME: this.orderTable.tableName,
+                USER_POOL_ID: userPoolId,
+            },
+        });
+
+        const getByListingFunction = new lambda.Function(this, 'GetByListingFunction', {
+            runtime: lambda.Runtime.NODEJS_14_X,
+            handler: 'order/getByListing.handler',
+            code: lambda.Code.fromAsset('src/order'),
+            environment: {
+                ORDER_TABLE_NAME: this.orderTable.tableName,
+                LISTING_TABLE_NAME: listingTable.tableName,
+                USER_POOL_ID: userPoolId,
             },
         });
 
@@ -69,15 +101,23 @@ export class OrderStack extends cdk.Stack {
             code: lambda.Code.fromAsset('src/order'),
             environment: {
                 ORDER_TABLE_NAME: this.orderTable.tableName,
+                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
                 USER_POOL_ID: userPoolId,
-                HOST_GROUP: hostGroup,
             },
         });
 
         this.orderTable.grantReadWriteData(createOrderFunction);
+        availabilityTable.grantReadWriteData(createOrderFunction);
+        listingTable.grantReadData(createOrderFunction);
         this.orderTable.grantReadWriteData(updateOrderFunction);
+        availabilityTable.grantReadWriteData(updateOrderFunction);
         this.orderTable.grantReadData(getOrderFunction);
+        this.orderTable.grantReadData(getByUserFunction);
+        this.orderTable.grantReadData(getByListingFunction);
+        listingTable.grantReadData(getByListingFunction);
         this.orderTable.grantReadWriteData(deleteOrderFunction);
+        availabilityTable.grantReadWriteData(deleteOrderFunction);
+
 
         // Create API Gateway
         const api = new apigateway.RestApi(this, 'OrderApi', {
@@ -93,6 +133,12 @@ export class OrderStack extends cdk.Stack {
 
         const getOrder = orders.addResource('get').addResource('{orderId}');
         getOrder.addMethod('GET', new apigateway.LambdaIntegration(getOrderFunction));
+
+        const getByUser = orders.addResource('getByUser').addResource('{userId}');
+        getByUser.addMethod('GET', new apigateway.LambdaIntegration(getByUserFunction));
+
+        const getByListing = orders.addResource('getByListing').addResource('{listingId}');
+        getByListing.addMethod('GET', new apigateway.LambdaIntegration(getByListingFunction));
 
         const deleteOrder = orders.addResource('delete').addResource('{orderId}');
         deleteOrder.addMethod('DELETE', new apigateway.LambdaIntegration(deleteOrderFunction));

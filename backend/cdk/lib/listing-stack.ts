@@ -12,38 +12,41 @@ interface ListingStackProps extends cdk.StackProps {
 }
 
 export class ListingStack extends cdk.Stack {
+    public readonly listingTable: dynamodb.Table;
+    public readonly availabilityTable: dynamodb.Table;
+
     constructor(scope: Construct, id: string, props: ListingStackProps) {
         super(scope, id, props);
 
         // Create DynamoDB tables
-        const listingTable = new dynamodb.Table(this, 'ListingTable', {
+        this.listingTable = new dynamodb.Table(this, 'ListingTable', {
             partitionKey: { name: 'listingId', type: dynamodb.AttributeType.STRING },
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
-        listingTable.addGlobalSecondaryIndex({
+        this.listingTable.addGlobalSecondaryIndex({
             indexName: 'HostIdIndex',
             partitionKey: { name: 'hostId', type: dynamodb.AttributeType.STRING },
             projectionType: dynamodb.ProjectionType.INCLUDE,
             nonKeyAttributes: ['listingId'],
         });
 
-        listingTable.addGlobalSecondaryIndex({
+        this.listingTable.addGlobalSecondaryIndex({
             indexName: 'TypeIndex',
             partitionKey: { name: 'listingType', type: dynamodb.AttributeType.STRING },
             projectionType: dynamodb.ProjectionType.INCLUDE,
             nonKeyAttributes: ['listingId'],
         });
 
-        const availabilityTable = new dynamodb.Table(this, 'AvailabilityTable', {
+        this.availabilityTable = new dynamodb.Table(this, 'AvailabilityTable', {
             partitionKey: { name: 'listingId', type: dynamodb.AttributeType.STRING },
             sortKey: { name: 'date', type: dynamodb.AttributeType.STRING },
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
-        availabilityTable.addGlobalSecondaryIndex({
+        this.availabilityTable.addGlobalSecondaryIndex({
             indexName: 'DatePriceIndex',
             partitionKey: { name: 'date', type: dynamodb.AttributeType.STRING },
             sortKey: { name: 'price', type: dynamodb.AttributeType.NUMBER },
@@ -57,13 +60,13 @@ export class ListingStack extends cdk.Stack {
             handler: 'listing/create.handler',
             code: lambda.Code.fromAsset('src/listing'),
             environment: {
-                LISTING_TABLE_NAME: listingTable.tableName,
+                LISTING_TABLE_NAME: this.listingTable.tableName,
                 USER_POOL_ID: props.userPoolId,
                 HOST_GROUP: props.hostGroup,
             },
         });
 
-        listingTable.grantReadWriteData(createListingFunction);
+        this.listingTable.grantReadWriteData(createListingFunction);
 
         createListingFunction.addToRolePolicy(new PolicyStatement({
             actions: [
@@ -79,11 +82,11 @@ export class ListingStack extends cdk.Stack {
             handler: 'listing/get.handler',
             code: lambda.Code.fromAsset('src/listing'),
             environment: {
-                LISTING_TABLE_NAME: listingTable.tableName,
+                LISTING_TABLE_NAME: this.listingTable.tableName,
             },
         });
 
-        listingTable.grantReadData(getListingFunction);
+        this.listingTable.grantReadData(getListingFunction);
 
         // Create Lambda function for listing listings
         const listListingsFunction = new lambda.Function(this, 'ListListingsFunction', {
@@ -91,11 +94,11 @@ export class ListingStack extends cdk.Stack {
             handler: 'listing/list.handler',
             code: lambda.Code.fromAsset('src/listing'),
             environment: {
-                LISTING_TABLE_NAME: listingTable.tableName,
+                LISTING_TABLE_NAME: this.listingTable.tableName,
             },
         });
 
-        listingTable.grantReadData(listListingsFunction);
+        this.listingTable.grantReadData(listListingsFunction);
 
         // Create Lambda function for searching listings with availability and price filtering
         const searchListingsFunction = new lambda.Function(this, 'SearchListingsFunction', {
@@ -103,13 +106,13 @@ export class ListingStack extends cdk.Stack {
             handler: 'listing/search.handler',
             code: lambda.Code.fromAsset('src/listing'),
             environment: {
-                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
-                LISTING_TABLE_NAME: listingTable.tableName,
+                AVAILABILITY_TABLE_NAME: this.availabilityTable.tableName,
+                LISTING_TABLE_NAME: this.listingTable.tableName,
             },
         });
 
-        availabilityTable.grantReadData(searchListingsFunction);
-        listingTable.grantReadData(searchListingsFunction);
+        this.availabilityTable.grantReadData(searchListingsFunction);
+        this.listingTable.grantReadData(searchListingsFunction);
 
         // Create Lambda function for updating availability and price
         const updateAvailabilityFunction = new lambda.Function(this, 'UpdateAvailabilityFunction', {
@@ -117,15 +120,15 @@ export class ListingStack extends cdk.Stack {
             handler: 'listing/updateAvailability.handler',
             code: lambda.Code.fromAsset('src/listing'),
             environment: {
-                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
-                LISTING_TABLE_NAME: listingTable.tableName,
+                AVAILABILITY_TABLE_NAME: this.availabilityTable.tableName,
+                LISTING_TABLE_NAME: this.listingTable.tableName,
                 USER_POOL_ID: props.userPoolId,
                 HOST_GROUP: props.hostGroup,
             },
         });
 
-        availabilityTable.grantReadWriteData(updateAvailabilityFunction);
-        listingTable.grantReadData(searchListingsFunction);
+        this.availabilityTable.grantReadWriteData(updateAvailabilityFunction);
+        this.listingTable.grantReadData(updateAvailabilityFunction);
 
         updateAvailabilityFunction.addToRolePolicy(new PolicyStatement({
             actions: [
@@ -140,13 +143,13 @@ export class ListingStack extends cdk.Stack {
             handler: 'listing/update.handler',
             code: lambda.Code.fromAsset('src/listing'),
             environment: {
-                LISTING_TABLE_NAME: listingTable.tableName,
+                LISTING_TABLE_NAME: this.listingTable.tableName,
                 USER_POOL_ID: props.userPoolId,
                 HOST_GROUP: props.hostGroup,
             },
         });
 
-        listingTable.grantReadWriteData(updateListingFunction);
+        this.listingTable.grantReadWriteData(updateListingFunction);
 
         updateListingFunction.addToRolePolicy(new PolicyStatement({
             actions: [
@@ -161,15 +164,15 @@ export class ListingStack extends cdk.Stack {
             handler: 'listing/delete.handler',
             code: lambda.Code.fromAsset('src/listing'),
             environment: {
-                LISTING_TABLE_NAME: listingTable.tableName,
-                AVAILABILITY_TABLE_NAME: availabilityTable.tableName,
+                LISTING_TABLE_NAME: this.listingTable.tableName,
+                AVAILABILITY_TABLE_NAME: this.availabilityTable.tableName,
                 USER_POOL_ID: props.userPoolId,
                 HOST_GROUP: props.hostGroup,
             },
         });
 
-        listingTable.grantReadWriteData(deleteListingFunction);
-        availabilityTable.grantReadWriteData(deleteListingFunction);
+        this.listingTable.grantReadWriteData(deleteListingFunction);
+        this.availabilityTable.grantReadWriteData(deleteListingFunction);
 
         deleteListingFunction.addToRolePolicy(new PolicyStatement({
             actions: [
@@ -213,7 +216,7 @@ export class ListingStack extends cdk.Stack {
         deleteListing.addMethod('DELETE', deleteListingIntegration);
 
         // Output the table names
-        new cdk.CfnOutput(this, 'ListingTableName', { value: listingTable.tableName });
-        new cdk.CfnOutput(this, 'AvailabilityTableName', { value: availabilityTable.tableName });
+        new cdk.CfnOutput(this, 'ListingTableName', { value: this.listingTable.tableName });
+        new cdk.CfnOutput(this, 'AvailabilityTableName', { value: this.availabilityTable.tableName });
     }
 }

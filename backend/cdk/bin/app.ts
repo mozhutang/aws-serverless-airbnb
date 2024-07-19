@@ -10,7 +10,7 @@ class MainStack extends Stack {
 
         const userStack = new UserStack(this, 'UserStack');
 
-        new ListingStack(this, 'ListingStack', {
+        const listingStack = new ListingStack(this, 'ListingStack', {
             userPoolId: userStack.userPoolId,
             userPoolClientId: userStack.userPoolClientId,
             hostGroup: userStack.hostGroup,
@@ -19,6 +19,8 @@ class MainStack extends Stack {
         new OrderStack(this, 'OrderStack', {
             userPoolId: userStack.userPoolId,
             hostGroup: userStack.hostGroup,
+            availabilityTable: listingStack.availabilityTable,
+            listingTable: listingStack.listingTable
         });
     }
 }
